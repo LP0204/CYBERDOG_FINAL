@@ -97,17 +97,19 @@ class ControlConfig(_ConfigBase):
     kickoff_keep = 1.0            # 对方开球前离球至少多远
 
 
-FIELD = FieldConfig()
-CONTROL = ControlConfig()
+# 教室动捕实测标定：goal_left=(-0.114, 4.827)、goal_right=(-0.241, -4.249)，两门距 9.08 m。
+FIELD = FieldConfig(origin_x=-2.857, origin_y=5.327, rotation=-1.5848)
+# 首测限速（跑稳后可删掉括号内参数恢复默认 0.55 / 0.50 / 0.30）
+CONTROL = ControlConfig(max_vx=0.30, push_speed=0.30, max_vy=0.20, near_ball_speed=0.25)
 
 TEAM = 'red'                      # 只用于分工话题名 /soccer/<TEAM>/striker
 BALL_RIGID_BODY = 'ball'
 
-# 1 号狗、2 号狗（规则 6.2：左侧终端 1 号，右侧终端 2 号）。
+# 1 号狗（本机控制）、2 号狗（队友刚体，用于分工和避让）。
 DOGS: Dict[int, DogConfig] = {
-    1: DogConfig(rigid_body='red1', namespace='fixed_value', host='mi@192.168.1.101'),
-    2: DogConfig(rigid_body='red2', namespace='fixed_value2', host='mi@192.168.1.102'),
+    1: DogConfig(rigid_body='lp_dog', namespace='fixed_value', host='mi@10.0.0.27'),
+    2: DogConfig(rigid_body='wcy_dog', namespace='fixed_value2', host='mi@192.168.1.102'),
 }
 
-# 不属于我方和球的其他刚体都当作“其他狗”避让。场外刚体（下一场赛队）会按坐标过滤。
-IGNORE_RIGID_BODIES = []
+# 球门刚体必须忽略，否则会被当成对方机器狗避让。
+IGNORE_RIGID_BODIES = ['goal_left', 'goal_right']
