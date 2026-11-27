@@ -54,7 +54,7 @@ class Brain:
             return Command.stop('goal_pause')
         escape = self.stuck.escape_command(t)
         if escape is not None:
-            return escape
+            return self.limit_translation(world.me, escape, self.obstacles(world))
 
         if world.ball is not None:
             self.last_ball = world.ball
@@ -86,6 +86,27 @@ class Brain:
         if ball_obstacle is not None:
             obs.append((ball_obstacle, cfg.ball_avoid_radius, cfg.ball_contact))
         return obs
+
+    def limit_translation(self, me, cmd, obstacles):
+        """对最终的机身速度做限速。统一缩放平移，保留原转向和行进方向。"""
+        velocity = geo.rotate((cmd.vx, cmd.vy), me.yaw)
+        wall_velocity = self.field.wall_limit(me.xy, velocity, self.cfg.wall_soft)
+        scale = 1.0
+        for requested, allowed in zip(velocity, wall_velocity):
+            if abs(requested) > 1e-9:
+                scale = min(scale, allowed / requested)
+
+        for center, radius, contact in obstacles:
+            toward = geo.sub(center, me.xy)
+            distance = geo.norm(toward)
+            if distance < 1e-6:
+                return Command(0.0, 0.0, cmd.wz, cmd.mode)
+            if geo.dot(velocity, toward) > 0.0:
+                if distance <= contact:
+                    return Command(0.0, 0.0, cmd.wz, cmd.mode)
+                if distance < radius:
+                    scale = min(scale, (distance - contact) / (radius - contact))
+        return Command(cmd.vx * scale, cmd.vy * scale, cmd.wz, cmd.mode)
 
     def go_to(self, world, target, face, vmax, mode, ball_obstacle=None,
               face_travel=True):
@@ -130,14 +151,13 @@ class Brain:
             # 沿射门方向前推，横向偏差用横移纠正。
             vel = geo.add(geo.scale(u, cfg.push_speed),
                           geo.scale(geo.perp(u), -1.5 * lateral))
-            vel = avoid(me.xy, vel, [(o, cfg.opp_radius, cfg.dog_contact) for o in world.others],
-                        cfg.repulse_gain)
-            vel = self.field.wall_limit(me.xy, vel, cfg.wall_soft)
+            dogs = self.obstacles(world)
+            vel = avoid(me.xy, vel, dogs, cfg.repulse_gain)
             cmd = body_command(me, vel, geo.angle_of(u), cfg, 'push')
             if cmd.vx > cfg.block_slow_speed and front_blocked(
-                    me, world.others, cfg.block_slow_dist):
+                    me, (center for center, _, _ in dogs), cfg.block_slow_dist):
                 cmd.vx = cfg.block_slow_speed
-            return cmd
+            return self.limit_translation(me, cmd, dogs)
 
         behind = geo.sub(ball, geo.scale(u, cfg.standoff))
         if along > -0.15 and abs(lateral) < cfg.circle_radius:

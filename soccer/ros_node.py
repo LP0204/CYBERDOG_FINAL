@@ -15,7 +15,7 @@ from std_msgs.msg import String
 
 try:
     from protocol.srv import MotionResultCmd
-except ImportError:          # 旧固件没有这个服务时只能跳过起身
+except ImportError:          # 允许缺少起身服务类型时运行预览
     MotionResultCmd = None
 
 from . import config
@@ -146,32 +146,36 @@ class SoccerNode(Node):
     # ------------------------------------------------------------ 起身
     def standup(self, t):
         """规则 3.3：比赛开始时狗趴在出发点，程序启动后先起身。"""
-        if self.dry_run or MotionResultCmd is None:
-            if MotionResultCmd is None:
-                self.get_logger().warn('没有 protocol/srv/MotionResultCmd，跳过起身')
+        if self.dry_run:
             self.phase = 'run'
             return
+        if MotionResultCmd is None:
+            raise RuntimeError('缺少 protocol/srv/MotionResultCmd')
         if self.stand_client is None:
             self.stand_client = self.create_client(
                 MotionResultCmd, '/{}/motion_result_cmd'.format(self.dog.namespace))
         if self.stand_future is None:
-            if self.stand_client.service_is_ready():
-                req = MotionResultCmd.Request()
-                req.motion_id = STAND_UP_MOTION_ID
-                self.stand_future = self.stand_client.call_async(req)
-                self.get_logger().info('发送起身指令')
-            elif t - self.stand_t0 > 5.0:
-                self.get_logger().warn('起身服务 5 s 未就绪，直接进入比赛')
-                self.phase = 'run'
+            if t - self.stand_t0 >= 5.0:
+                raise TimeoutError('等待起身服务就绪超时（5 s）')
+            if not self.stand_client.service_is_ready():
+                return
+            req = MotionResultCmd.Request()
+            req.motion_id = STAND_UP_MOTION_ID
+            self.stand_future = self.stand_client.call_async(req)
+            self.stand_t0 = t
+            self.get_logger().info('发送起身指令')
             return
-        if self.stand_future.done():
-            res = self.stand_future.result()
-            self.get_logger().info('起身完成：result={} code={}'.format(
-                getattr(res, 'result', '?'), getattr(res, 'code', '?')))
-            self.phase = 'run'
-        elif t - self.stand_t0 > 15.0:
-            self.get_logger().warn('起身超时，直接进入比赛')
-            self.phase = 'run'
+        if t - self.stand_t0 >= 15.0:
+            raise TimeoutError('等待起身响应超时（15 s）')
+        if not self.stand_future.done():
+            return
+        res = self.stand_future.result()
+        if res is None:
+            raise RuntimeError('起身服务未返回响应')
+        if not res.result or res.code != 0:
+            raise RuntimeError('起身服务返回 result={} code={}'.format(res.result, res.code))
+        self.get_logger().info('起身成功，进入比赛')
+        self.phase = 'run'
 
     # ------------------------------------------------------------ 主循环
     def setup_side(self, attack_dir, how):
@@ -194,7 +198,13 @@ class SoccerNode(Node):
     def tick(self):
         t = time.monotonic()
         if self.phase == 'standup':
-            self.standup(t)
+            try:
+                self.standup(t)
+            except Exception as error:
+                self.phase = 'stand_failed'
+                self.get_logger().error('起身失败：{}。请排查后重新启动本狗程序。'.format(error))
+            return
+        if self.phase != 'run':
             return
         me = self.pose_of(self.dog.rigid_body, t, self.cfg.pose_timeout)
         mate = self.pose_of(self.mate.rigid_body, t, self.cfg.pose_timeout)
@@ -279,6 +289,8 @@ class SoccerNode(Node):
             self.last_log = t
 
     def shutdown(self):
+        if self.phase != 'run':
+            return
         for _ in range(3):
             self.send_halt()
             time.sleep(0.1)
