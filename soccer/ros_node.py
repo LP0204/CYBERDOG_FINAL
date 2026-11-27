@@ -28,6 +28,7 @@ from .roles import RoleArbiter, striker_cost
 
 VRPN_POSE = re.compile(r'^/vrpn/([^/]+)/pose$')
 STAND_UP_MOTION_ID = 111     # 恢复站立
+CMD_SOURCE = 4               # 实机验证通过的控制源编号
 
 
 class BallTracker:
@@ -161,6 +162,7 @@ class SoccerNode(Node):
                 return
             req = MotionResultCmd.Request()
             req.motion_id = STAND_UP_MOTION_ID
+            req.cmd_source = CMD_SOURCE
             self.stand_future = self.stand_client.call_async(req)
             self.stand_t0 = t
             self.get_logger().info('发送起身指令')
@@ -271,6 +273,8 @@ class SoccerNode(Node):
         msg.value = 2
         msg.vel_des = [float(cmd.vx), float(cmd.vy), float(cmd.wz)]
         msg.step_height = [self.cfg.step_height, self.cfg.step_height]
+        if hasattr(msg, 'cmd_source'):
+            msg.cmd_source = CMD_SOURCE
         self.motion_pub.publish(msg)
 
     def send_halt(self):
@@ -280,6 +284,8 @@ class SoccerNode(Node):
         msg.motion_id = self.cfg.motion_id
         msg.cmd_type = 2                         # 结束帧
         msg.vel_des = [0.0, 0.0, 0.0]
+        if hasattr(msg, 'cmd_source'):
+            msg.cmd_source = CMD_SOURCE
         self.motion_pub.publish(msg)
         self.last_halt = True
 

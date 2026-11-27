@@ -66,6 +66,7 @@ class StandupTest(unittest.TestCase):
         self.assertEqual(self.node.phase, 'standup')
         self.client.call_async.assert_called_once()
         self.assertEqual(self.client.call_async.call_args[0][0].motion_id, 111)
+        self.assertEqual(self.client.call_async.call_args[0][0].cmd_source, 4)
         self.future.set_result(SimpleNamespace(result=True, code=0))
         self.tick(1.2)
         self.assertEqual(self.node.phase, 'run')
