@@ -100,9 +100,13 @@ class ControlConfig(_ConfigBase):
 
 # 教室动捕实测标定：goal_left=(-0.114, 4.827)、goal_right=(-0.241, -4.249)，两门距 9.08 m。
 FIELD = FieldConfig(origin_x=-2.857, origin_y=5.327, rotation=-1.5848)
-# 首测配置：限速 0.30 m/s，关闭狗避让（避免动捕残留刚体或贴身卡停；仍保留围挡限速和绕球）
+# 实机配置：305 步态激进档；放宽超时抗动捕 0.38 s 级抖动、放宽推射衔接消除顿挫
 CONTROL = ControlConfig(
-    max_vx=0.30, push_speed=0.30, max_vy=0.20, near_ball_speed=0.25,
+    motion_id=305, step_height=0.07,
+    max_vx=1.00, push_speed=1.00, near_ball_speed=0.40,
+    max_vy=0.30, max_back=0.30, max_wz=1.2,
+    pose_timeout=1.0, ball_timeout=1.2,
+    push_enter_lat=0.18, push_exit_lat=0.32, push_exit_dist=1.30,
     avoid_dogs=False,
 )
 

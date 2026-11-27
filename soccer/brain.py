@@ -142,11 +142,12 @@ class Brain:
         heading_err = geo.wrap(geo.angle_of(u) - me.yaw)
         dball = geo.norm(rel)
 
+        push_enter_min = min(-cfg.standoff - 0.25, -cfg.push_exit_dist + 0.15)
         if self.pushing:
             if (along > 0.10 or abs(lateral) > cfg.push_exit_lat
                     or abs(heading_err) > cfg.push_exit_yaw or dball > cfg.push_exit_dist):
                 self.pushing = False
-        elif (-cfg.standoff - 0.25 < along < -0.12 and abs(lateral) < cfg.push_enter_lat
+        elif (push_enter_min < along < -0.12 and abs(lateral) < cfg.push_enter_lat
               and abs(heading_err) < cfg.push_enter_yaw):
             self.pushing = True
 

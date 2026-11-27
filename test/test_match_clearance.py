@@ -81,6 +81,18 @@ class TestMatchClearance(unittest.TestCase):
         _, field_vy = geo.rotate((esc.vx, esc.vy), wall_world.me.yaw)
         self.assertGreaterEqual(field_vy, -1e-9)
 
+    def test_live_config_smooth_push_and_jitter_timeouts(self):
+        cfg = config.CONTROL
+        self.assertEqual(cfg.motion_id, 305)
+        self.assertGreaterEqual(cfg.pose_timeout, 1.0)
+        self.assertGreaterEqual(cfg.ball_timeout, 1.2)
+        brain = Brain(1, Field(config.FieldConfig()), cfg, attack_dir=1)
+        # 在球后 1.0 m 且已对准球门时直接连贯进入 push，不先刹停再加速
+        w = World(me=Pose(4.0, 2.75, 0.0), ball=(5.0, 2.75))
+        cmd = brain.step(w, 1, PLAY, 0.0)
+        self.assertEqual(cmd.mode, 'push')
+        self.assertAlmostEqual(cmd.vx, cfg.push_speed, places=4)
+
     def _first_escape_with(self, brain, cfg, world):
         for frame in range(50):
             now = frame / cfg.rate
