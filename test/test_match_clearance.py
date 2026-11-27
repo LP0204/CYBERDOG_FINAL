@@ -59,3 +59,32 @@ class TestMatchClearance(unittest.TestCase):
         _, cmd = self.first_escape(world)
         _, field_vy = geo.rotate((cmd.vx, cmd.vy), world.me.yaw)
         self.assertGreaterEqual(field_vy, -1e-9)
+
+    def test_avoid_dogs_false_ignores_dogs_but_keeps_wall_limit(self):
+        cfg = config.ControlConfig(avoid_dogs=False)
+        brain = Brain(1, Field(config.FieldConfig()), cfg, attack_dir=-1)
+        # 复现现场：GEXY2 在 (1.51, 2.10) 时，关闭避让后不再在球前停死
+        world = World(me=Pose(1.87, 2.64, math.radians(163.0)),
+                      ball=(1.22, 2.53), others=[(1.51, 2.10)])
+        cmd = brain.step(world, 1, PLAY, 0.0)
+        self.assertGreater(cmd.speed, 0.15)
+        # 推射时也不因前方有狗减速
+        world_push = World(me=Pose(1.65, 2.40, math.radians(163.0)),
+                           ball=(1.22, 2.53), mate=Pose(1.30, 2.50, 0.0),
+                           others=[(1.51, 2.10)])
+        push_cmd = brain.step(world_push, 1, PLAY, 0.1)
+        self.assertEqual(push_cmd.mode, 'push')
+        self.assertAlmostEqual(push_cmd.vx, cfg.push_speed, places=4)
+        # 围挡限速仍然有效
+        wall_world = World(me=Pose(5.0, 0.30, math.pi / 2), ball=(7.0, 2.75))
+        _, esc = self._first_escape_with(brain, cfg, wall_world)
+        _, field_vy = geo.rotate((esc.vx, esc.vy), wall_world.me.yaw)
+        self.assertGreaterEqual(field_vy, -1e-9)
+
+    def _first_escape_with(self, brain, cfg, world):
+        for frame in range(50):
+            now = frame / cfg.rate
+            cmd = brain.step(world, 1, PLAY, now)
+            if cmd.mode == 'escape':
+                return now, cmd
+        self.fail('卡住后未进入脱困动作')

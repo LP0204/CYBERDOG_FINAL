@@ -80,9 +80,11 @@ class Brain:
     # ------------------------------------------------------------------
     def obstacles(self, world, ball_obstacle=None):
         cfg = self.cfg
-        obs = [(o, cfg.opp_radius, cfg.dog_contact) for o in world.others]
-        if world.mate is not None:
-            obs.append((world.mate.xy, cfg.mate_radius, cfg.dog_contact))
+        obs = []
+        if cfg.avoid_dogs:
+            obs.extend((o, cfg.opp_radius, cfg.dog_contact) for o in world.others)
+            if world.mate is not None:
+                obs.append((world.mate.xy, cfg.mate_radius, cfg.dog_contact))
         if ball_obstacle is not None:
             obs.append((ball_obstacle, cfg.ball_avoid_radius, cfg.ball_contact))
         return obs
@@ -122,7 +124,7 @@ class Brain:
         if face_travel and d > cfg.travel_face_dist and geo.norm(vel) > 0.15:
             face = geo.angle_of(vel)
         cmd = body_command(me, vel, face, cfg, mode)
-        if cmd.vx > cfg.block_slow_speed and front_blocked(
+        if cfg.avoid_dogs and cmd.vx > cfg.block_slow_speed and front_blocked(
                 me, world.others, cfg.block_slow_dist):
             cmd.vx = cfg.block_slow_speed          # 前方有对方狗：只能慢慢靠近，绝不冲撞
         return cmd
@@ -131,7 +133,8 @@ class Brain:
     def attack(self, world, ball):
         cfg = self.cfg
         me = world.me
-        aim = choose_aim(self.field, ball, self.attack_dir, world.others)
+        aim_others = world.others if cfg.avoid_dogs else []
+        aim = choose_aim(self.field, ball, self.attack_dir, aim_others)
         u = geo.unit(geo.sub(aim, ball))
         rel = geo.sub(me.xy, ball)
         along = geo.dot(rel, u)                 # <0：在球后方
@@ -154,7 +157,7 @@ class Brain:
             dogs = self.obstacles(world)
             vel = avoid(me.xy, vel, dogs, cfg.repulse_gain)
             cmd = body_command(me, vel, geo.angle_of(u), cfg, 'push')
-            if cmd.vx > cfg.block_slow_speed and front_blocked(
+            if cfg.avoid_dogs and cmd.vx > cfg.block_slow_speed and front_blocked(
                     me, (center for center, _, _ in dogs), cfg.block_slow_dist):
                 cmd.vx = cfg.block_slow_speed
             return self.limit_translation(me, cmd, dogs)

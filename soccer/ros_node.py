@@ -86,8 +86,9 @@ class SoccerNode(Node):
 
         for name in (self.dog.rigid_body, self.mate.rigid_body, config.BALL_RIGID_BODY):
             self.subscribe_rigid(name)
-        self.discover()
-        self.create_timer(1.0, self.discover)
+        if self.cfg.avoid_dogs:
+            self.discover()
+            self.create_timer(1.0, self.discover)
 
         self.phase = 'standup'
         self.stand_client = None
@@ -189,6 +190,8 @@ class SoccerNode(Node):
             '右侧' if attack_dir > 0 else '左侧'))
 
     def others(self, t):
+        if not self.cfg.avoid_dogs:
+            return []
         out = []
         for name, (pose, stamp) in self.poses.items():
             if name in (self.dog.rigid_body, self.mate.rigid_body):

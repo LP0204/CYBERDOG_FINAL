@@ -71,6 +71,7 @@ class ControlConfig(_ConfigBase):
 
     opp_radius = 0.75             # 对方/其他狗的避让影响半径（中心距）
     mate_radius = 0.80            # 队友避让半径
+    avoid_dogs = True             # False：关闭对其他狗（含队友/对手）的避让，仍保留绕球与围挡限速
     ball_avoid_radius = 0.40      # 没对准时把球当障碍，避免把球碰歪
     dog_contact = 0.62            # 两狗中心距小于此值视为贴身，朝对方的速度清零
     ball_contact = 0.30
@@ -99,8 +100,11 @@ class ControlConfig(_ConfigBase):
 
 # 教室动捕实测标定：goal_left=(-0.114, 4.827)、goal_right=(-0.241, -4.249)，两门距 9.08 m。
 FIELD = FieldConfig(origin_x=-2.857, origin_y=5.327, rotation=-1.5848)
-# 首测限速（跑稳后可删掉括号内参数恢复默认 0.55 / 0.50 / 0.30）
-CONTROL = ControlConfig(max_vx=0.30, push_speed=0.30, max_vy=0.20, near_ball_speed=0.25)
+# 首测配置：限速 0.30 m/s，关闭狗避让（避免动捕残留刚体或贴身卡停；仍保留围挡限速和绕球）
+CONTROL = ControlConfig(
+    max_vx=0.30, push_speed=0.30, max_vy=0.20, near_ball_speed=0.25,
+    avoid_dogs=False,
+)
 
 TEAM = 'red'                      # 只用于分工话题名 /soccer/<TEAM>/striker
 BALL_RIGID_BODY = 'ball'
